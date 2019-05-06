@@ -1,0 +1,771 @@
+---
+title: "Data Science Project"
+author: "Jack Fong Gougoutas, Josh Upadhyay, Federico Chung"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+library(rtimes)
+require(pracma)
+library(tidyverse)
+library(plotly)
+library(lubridate)
+library(ggrepel)
+rtimes_key <- "71aadd3598ff4e009b4fe8fbe2f27f01"
+
+```
+
+
+```{r,cache=TRUE, eval=FALSE, include= FALSE}
+# Tell rtimes what our API key is
+Sys.setenv(NYTIMES_AS_KEY = rtimes_key)
+
+# Issue our first API call
+res <- as_search(q="Afghanistan drone strikes", begin_date = "20040101", end_date = "20180101",all_results = TRUE)
+res1<- as_search(q="Pakistan drone strikes", begin_date = "20040101", end_date = "20180101",all_results = TRUE)
+
+
+
+```
+
+```{r,eval=FALSE, include= FALSE}
+#data for all the countries
+data_afghanistan <- res$data
+data_pakistan<- res1$data
+
+
+write.csv(data_afghanistan, file = "resafghan.csv",na.action = )
+```
+
+```{r,eval=FALSE, include=FALSE}
+#Afghanistan Drone Strike Articles over time
+vis_afghanistan<-res$data$pub_date
+
+date<-substr(vis_afghanistan, start = 1, stop = 10)
+
+data1 <- tibble(datenew = as_date(date))
+#things that we need to download
+write.csv(data1, file = "data1.csv")
+```
+
+```{r include=FALSE}
+data1 = read_csv("data1.csv")
+
+afghanistan_time<-
+  data1%>%
+  mutate(country = "Afghanistan")
+
+ggplot(data = data1, aes(x = datenew))+
+  geom_density(fill = "turquoise")+
+  ggtitle("Afghanistan Drone Strikes NYTimes Articles")
+```
+
+
+```{r,eval=FALSE, include=FALSE}
+#Pakistan Drone Strike Articles over time
+vis_pakistan<-res1$data$pub_date
+
+date_pakistan<-substr(vis_pakistan, start = 1, stop = 10)
+
+data.pakistan <- tibble(datenew = as_date(date_pakistan))
+
+#things that we need to download
+write.csv(data.pakistan, file = "data.pakistan.csv")
+```
+
+```{r, include=FALSE}
+data.pakistan = read_csv("data.pakistan.csv")
+
+pakistan_time<-
+  data.pakistan%>%
+  mutate(country = "Pakistan")
+
+pakistan_time
+
+ggplot(data = data.pakistan, aes(x = datenew))+
+  geom_density(fill = "red")+
+  ggtitle("Pakistan Drone Strikes NYTimes Articles")
+```
+
+```{r include=FALSE}
+all_times = rbind(afghanistan_time,pakistan_time)
+
+ggplot(data = all_times, aes(x = datenew,fill = country))+
+  geom_density(aes(group = country), alpha = 0.4)+
+  scale_fill_manual(values = c("blue","red"))+
+  ggtitle("Drone Strikes NYTimes Articles Pakistan and Afghanistan")
+
+#years = 2009-2017
+timeperiod<-
+  all_times%>%
+  mutate(year = year(datenew))%>%
+  filter(year >2009)
+
+timeperiod
+ggplot(data = timeperiod, aes(x = datenew,fill = country))+
+  geom_density(aes(group = country), alpha = 0.4)+
+  scale_fill_manual(values = c("blue","red"))+
+  ggtitle("Drone Strikes NYTimes Articles Pakistan and Afghanistan")
+```
+
+
+```{r, include=FALSE}
+#difference in articles per month
+diff_num_articles<-
+  all_times%>%
+  mutate(year = year(datenew),month = month(datenew))%>%
+  group_by(country,year)%>%
+  summarise(n_articles = n())
+
+spread_out<-
+  diff_num_articles%>%
+  spread(key = country, value = n_articles, fill=  0)
+
+spread_out<-
+  spread_out%>%
+  mutate(diff_num = Pakistan - Afghanistan)%>%
+  mutate(positive = diff_num>0)
+spread_out
+spread_out%>%
+  ggplot(aes(x = year,y = diff_num,fill = positive))+
+  scale_fill_manual(values = c("blue","red"))+
+  geom_col()+
+  ggtitle("Difference in the number of articles between Pakistan and Afghanistan")+
+  guides(fill = guide_legend(title = "Pakistan>Afghanistan"))
+```
+
+```{r include=FALSE}
+#FOR ALL OF THEM
+ggplot(data = all_times, aes(x = datenew))+
+  geom_density(fill = "turquoise")+
+  ggtitle("Drone Strikes NYTimes Articles")
+```
+
+```{r,eval = FALSE, include=FALSE}
+#Afghanistan abstract table with date
+abstract<- data_afghanistan$abstract
+date<-substr(vis_afghanistan, start = 1, stop = 10)
+abstract_table<- tibble(datenew = as_date(date),abstract_afghanistan = abstract)
+abstract_table_naommited<- na.omit(abstract_table)
+abstract_table_naommited
+write.csv(abstract_table_naommited, file = "abstract_table_naommited.csv")
+
+```
+
+```{r, include=FALSE}
+#things that we need to download
+abstract_table_naommited<-read_csv("abstract_table_naommited.csv")
+abstract_table_naommited
+```
+
+```{r, eval = FALSE, include=FALSE}
+afghanistan_abstract_data<-data_afghanistan$abstract
+afghanistan_time_data<- data_afghanistan$pub_date
+afghanistan_header_data<- data_afghanistan$headline.print_headline
+afghanistan_abstract = tibble(abstract = afghanistan_abstract_data,datenew = as_date(afghanistan_time_data),header = afghanistan_header_data)
+afghanistan_abstract_na<-
+  na.omit(pakistan_abstract)
+
+abstract_af <- data_frame(text = afghanistan_abstract_na$abstract, date =afghanistan_abstract_na$datenew,header = afghanistan_abstract_na$header)
+abstract_af
+write.csv(abstract_af, file = "abstract_af.csv")
+```
+
+```{r, include=FALSE}
+#things that we need to download
+abstract_af<-read_csv("abstract_af.csv")
+abstract_af
+```
+
+
+```{r, eval=FALSE, include=FALSE}
+#abstract of the afghanistan articles
+just_abstract<- abstract_table_naommited%>%
+  select(abstract_afghanistan)
+
+just_abstract
+xxd<-abstract_table_naommited$abstract_afghanistan
+library(dplyr)
+just_abstract_df <- data_frame(title = 'Afghanistan Abstracts NYTIMES', text = xxd)
+just_abstract_df
+
+write.csv(just_abstract_df, file = "just_abstract_df.csv")
+library(tidytext)
+
+tidy_xdd <- just_abstract_df %>%
+  unnest_tokens(word, text)
+
+tidy_xdd
+write.csv(tidy_xdd, file = "tidy_xdd.csv")
+```
+
+```{r, include=FALSE}
+abstract_df = read_csv("just_abstract_df.csv")
+```
+
+
+```{r,eval=FALSE, include=FALSE}
+#things that we need to download
+abstract_table_naommited<-read_csv("tidy_xdd.csv")
+abstract_table_naommited
+```
+```{r include=FALSE}
+tidy_xdd = read_csv("tidy_xdd.csv")
+```
+
+
+```{r,eval=FALSE, include=FALSE}
+# Create and display frequency count table
+afghanistan_counts <- tidy_xdd %>%
+  count(word, sort = TRUE) 
+afghanistan_counts
+
+data(stop_words)
+
+stop_words
+
+afghanistan_clean_counts <- tidy_xdd %>%
+  anti_join(stop_words) %>%
+  count(word, sort=TRUE)
+
+afghanistan_clean_counts
+```
+
+```{r,eval=FALSE, include=FALSE}
+#eliminate some common words
+afghanistan_clean_counts<-
+  afghanistan_clean_counts%>%
+  filter(word!="american",word!="drone",word!="pakistani",word!="united",word!="pres")
+
+write.csv(afghanistan_clean_counts,"afghanistan_clean_counts.csv")
+```
+
+```{r, include=FALSE}
+afghanistan_clean_counts = read_csv("afghanistan_clean_counts.csv")
+```
+
+
+```{r,eval = FALSE, include=FALSE}
+#PAKISTAN
+pakistan_abstract_data<-data_pakistan$abstract
+pakistan_time_data<- data_pakistan$pub_date
+pakistan_header_data<- data_pakistan$headline.print_headline
+pakistan_abstract = tibble(abstract = pakistan_abstract_data,datenew = as_date(pakistan_time_data),header = pakistan_header_data)
+pakistan_abstract_na<-
+  na.omit(pakistan_abstract)
+
+abstract_pa <- data_frame(text = pakistan_abstract_na$abstract, date =pakistan_abstract_na$datenew,header = pakistan_abstract_na$header)
+abstract_pa
+write.csv(abstract_pa, file = "abstract_pa.csv")
+```
+
+```{r, include=FALSE}
+library(rvest)
+library(stringr)
+library(tidytext)
+library(wordcloud)
+#things that we need to download
+abstract_pa<-read_csv("abstract_pa.csv")
+abstract_pa
+
+tidy_abstract_pa <- abstract_pa %>%
+  unnest_tokens(word, text)
+tidy_abstract_pa
+```
+
+```{r, include=FALSE}
+# Create and display frequency count table
+pakistan_counts <- tidy_abstract_pa %>%
+  count(word, sort = TRUE) 
+pakistan_counts
+
+data(stop_words)
+stop_words
+
+pakistan_clean_counts <- tidy_abstract_pa %>%
+  anti_join(stop_words) %>%
+  count(word, sort=TRUE)
+
+pakistan_clean_counts
+```
+
+```{r, include=FALSE}
+#eliminate
+pakistan_clean_counts<-
+  pakistan_clean_counts%>%
+  filter(word!="american",word!="drone",word!="pakistani",word!="united",word!="pres")
+```
+
+```{r,eval = FALSE, include=FALSE}
+abstract_af1<-
+  abstract_af%>%
+  select(-X1_1)
+```
+
+
+```{r, include=FALSE}
+abstract_pa<- read_csv("abstract_pa.csv")
+abstract_af<- read_csv("abstract_af.csv")
+
+colnames(abstract_af)[6] <- "Country"
+
+all_abstract<- rbind(abstract_af,abstract_pa)
+```
+
+
+```{r, include=FALSE}
+#density plot number of drones per year
+drone<-read_csv("/Users/joshupadhyay/Desktop/drone\ data\ presentation/bigboidataset.csv")
+
+drone
+
+afghanistan_drone<-
+  drone%>%
+  filter(country=="Afghanistan")
+
+ggplot(data = afghanistan_drone,aes(x = Date))+
+  geom_density(fill = "blue")+
+  ggtitle("Afghanistan drones distribution")
+```
+
+```{r, include=FALSE}
+pakistan_drone<-
+  drone%>%
+  filter(country=="Pakistan")
+
+ggplot(data = pakistan_drone,aes(x = Date))+
+  geom_density(fill = "red")+
+  ggtitle("Pakistan drones distribution")
+```
+```{r include=FALSE}
+drone_paaf<-rbind(pakistan_drone, afghanistan_drone)
+drone_paaf
+ggplot(data = drone_paaf, aes(x = Date,fill = country))+
+  geom_density(aes(group = country), alpha = 0.4)+
+  scale_fill_manual(values = c("blue","red"))+
+  ggtitle("Drone Strikes Pakistan and Afghanistan")
+```
+
+
+
+
+
+
+
+
+
+#What's Happening in North Waziristan?
+
+
+Drone strike technology seems like a futuristic weapon technology, capable of wiping out any enemy force succinctly and efficiently. However, it's heavy utilization in the Middle East hasn't put an end to the longest war in American history, and the War on Terror has no end in sight. 
+Who is the US actually striking and where are these drones heading? To give you a sense of drone strike activity, we investigated Pakistan and Afghanistan as two hotbeds for drone strike targets. Al Qaeda dominance in the area has been the prominent reason why the US has felt the need to use drone strikes so to not risk American lives. As terrorist activity has shifted to many different countries in the Middle East, it is worth researching whether drone strikes follow terrorist activity until the terrorism subsides or whether it pushes it into other areas, and does American media reflect this movement? 
+
+
+To get a sense of where drone strikes have occurred, and what the media has associated with drone strikes, we first scraped New York Times articles for mentions of drone strikes. Four countries were of particular interest: Afghanistan, Pakistan, Yemen, and Somalia. Out of those four, Pakistan and Afghanistan appeared quite prominently in each other's word clouds. We decided to focus on these two countries to see if we could find any factors that tied them together. 
+
+
+
+<span style="color:blue">**Afghanistan Word Cloud **</span>
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+
+# Show a word cloud with some customized options
+
+worldcloudafghanistan <- wordcloud(afghanistan_clean_counts$word,             # column of words
+          afghanistan_clean_counts$n,                # column of frequencies
+          scale=c(4,0.1),                 # range of font sizes of words
+          min.freq = 10,                   # minimum word frequency to show
+          max.words=400,                  # show the 400 most frequent words
+          random.order=FALSE,             # position the most popular words first
+          colors=brewer.pal(8, "Dark2"))  # Color palette
+```
+
+<span style="color:blue">**Pakistan Word Cloud **</span>
+```{r, echo=FALSE}
+worldcloudpakistan <- wordcloud(pakistan_clean_counts$word,             # column of words
+          pakistan_clean_counts$n,                # column of frequencies
+          scale=c(5,0.1),                 # range of font sizes of words
+          min.freq = 2,                   # minimum word frequency to show
+          max.words=200,                  # show the 200 most frequent words
+          random.order=FALSE,             # position the most popular words first
+          colors=brewer.pal(8, "Dark2"))  # Color palette
+```
+
+
+To get a sense of where in these countries drones were especially used, we separated data by province. As shown here, North Waziristan was by far and away the most heavily drone-struck region, indicating something special was happening in the province. 
+
+
+<span style="color:blue">**Drone Strikes in Pakistan by Province**</span>
+```{r, include=FALSE}
+
+CIApakistan_CIApakistan <- read_csv("/Users/joshupadhyay/Desktop/drone\ data\ presentation/CIApakistan\ -\ CIApakistan.csv")
+pakistan <- CIApakistan_CIApakistan
+
+pakistan <- pakistan %>%
+  separate(Date, into = c("Day", "Month", "year"))
+
+pakistan_strike <- pakistan %>%
+  group_by(Area, year) %>%
+  summarize(strikes = n()) %>%
+  arrange(desc(strikes)) %>%
+  filter(Area != "Unclear")
+
+```
+
+
+``` {r, echo = FALSE}
+ggplot(data = pakistan_strike) + 
+  geom_col(aes(x = Area, y = strikes, fill = year)) + 
+  coord_flip() + 
+  labs(title = "Drone Strikes in Pakistan, by Province") + 
+  theme_minimal() + xlab("Province") + ylab("Number of Strikes")
+
+
+```
+
+
+
+After a quick Google search, we found that North Waziristan was a hotbed of terrorist activity: it is a semi-autonomous place, where the Pakistani government has not enforced anything too harshly. In addition, it is a known place to harbor Al-Qaeda and the Taliban soldiers, which explains the huge drone interest in the area. The area is also mountainous, the inaccessibility making it ideal for drones to conduct attacks instead of conventional soldiers. 
+
+A similar analysis was conducted for Afghanistan, where we found Nangarhar to be the most drone-struck. 
+
+
+
+
+
+
+
+
+
+```{r, include=FALSE}
+
+#afghanistan drone dataset
+afghanistan <- read.csv("/Users/joshupadhyay/Desktop/drone\ data\ presentation/afghan.csv")
+
+afghanistan <- afghanistan %>%
+  separate(Date, into = c("Day", "Month", "Year"), sep = "/") %>%
+  select(-Day, -Month)
+
+```
+
+
+```{r, include=FALSE}
+province_af <- afghanistan %>%
+  group_by(Province, Year) %>%
+  summarize(strikes = n()) %>%
+  arrange(desc(strikes)) %>%
+  head(n = 12)
+```
+```{r echo=FALSE}
+ggplot(data = province_af) + 
+  geom_col(aes(x = Province, y = strikes, fill = Year)) + 
+  coord_flip() + 
+  labs(title = "Drone Strikes in Afghanistan, by Province", subtitle = "") + 
+  theme_minimal() + xlab("Province") + ylab("Number of Strikes")
+```
+
+Funnily enough, there a connection between North Waziristan and Nangarhar as extremely active sites for drones. The consistently highlighted area is Nangarhar, with North Waziristan slightly off screen. (There were numerous issues finding a Pakistan shapefile.)
+
+
+```{r, include=FALSE}
+afghan_districts <- sf::st_read("https://opendata.arcgis.com/datasets/2b63527870ef416bacf83bcaf388685f_0.geojson")
+
+afghan_shape <- province_af 
+
+test2 <- afghan_districts %>%
+  left_join(afghan_shape, by = c("PROV_34_NA" =  "Province" ))
+
+
+```
+
+
+```{r, cache=TRUE, message=FALSE, include=FALSE}
+afghan_2018 <- ggplot(data = test2 %>% filter(Year == "2018"))+
+  geom_sf(data = test2, fill = "gray") +
+  geom_sf(aes(fill = strikes)) + scale_fill_gradient(low = "#204e4f", high = "#07f9ff") + labs(title = "Strikes in 2018")
+ggsave("a12018.png")
+
+afghan_2017 <- ggplot(data = test2 %>% filter(Year == "2017"))+
+  geom_sf(data = test2, fill = "gray") +
+  geom_sf(aes(fill = strikes)) + scale_fill_gradient(low = "#204e4f", high = "#07f9ff") + labs(title = "Strikes in 2017")
+ggsave("a12017.png")
+
+afghan_2016 <- ggplot(data = test2 %>% filter(Year == "2016"))+
+  geom_sf(data = test2, fill = "gray") +
+  geom_sf(aes(fill = strikes)) + scale_fill_gradient(low = "#204e4f", high = "#07f9ff") + labs(title = "Strikes in 2016")
+ggsave("a12016.png")
+
+afghan_2015 <- ggplot(data = test2 %>% filter(Year == "2015"))+
+  geom_sf(data = test2, fill = "gray") +
+  geom_sf(aes(fill = strikes)) + scale_fill_gradient(low = "#204e4f", high = "#07f9ff") + labs(title = "Strikes in 2015")
+ggsave("a12015.png")
+
+afghan_2014 <- ggplot(data = test2 %>% filter(Year == "2014"))+
+  geom_sf(data = test2, fill = "gray") +
+  geom_sf(aes(fill = strikes)) + scale_fill_gradient(low = "#204e4f", high = "#07f9ff") + labs(title = "Strikes in 2014")
+
+
+
+```
+
+```{r, include=FALSE}
+library(magick)
+```
+
+```{r, include=FALSE}
+shape_files <- c("/Users/joshupadhyay/Desktop/shape_files/a12015.png", "/Users/joshupadhyay/Desktop/shape_files/a12016.png", "/Users/joshupadhyay/Desktop/shape_files/a12017.png","/Users/joshupadhyay/Desktop/shape_files/a12018.png")
+
+shape_files %>%
+  map(image_read) %>%
+  image_join() %>%
+  image_animate(fps = 1) %>%
+  image_write("testgif.gif")
+
+```
+
+
+
+
+<span style="color:blue">**Strikes in Afghanistan, Visualized **</span>
+```{r, echo=FALSE, out.width="500px"}
+knitr::include_graphics("/Users/joshupadhyay/testgif.gif")
+```
+
+
+
+
+<span style="color:blue">**The Border Between Afghanistan and Pakistan**</span>
+```{r, echo=FALSE, out.width="600px"}
+knitr::include_graphics("/Users/joshupadhyay/Desktop/Screen\ Shot\ 2561-12-18\ at\ 10.11.32\ PM.png")
+```
+
+This map serves to show the proximity of North Waziristan and Nangarhar that the GIF did not show. They are actually neighoring provinces. May there be a connection between them, such as possible terrorist movement? 
+
+
+<span style="color:blue">**Focused Word Cloud**</span>
+
+As we can see in this focused word cloud from the articles in the New York Times, we took out all the common words between both countries and this is what remained. In this graph, the most important aspect is that Waziristan is mentioned in both Afghanistan and Pakistan word clouds. We infer that this is because the drone strikes started in Waziristan and moved away from Waziristan into Afghanistan. This further supports our conclusion that drone strikes started in Pakistan and move towards Afghanistan. Another word that is in both word clouds is Al Qaeda which suggests that the most prominent terrorist group of the area is Al Qaeda. This let us know that Waziristan was an area of interest, and that we were on the right track. 
+
+
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics("/Users/joshupadhyay/Desktop/afghanistan.png")
+
+```
+
+```{r, echo=FALSE, out.width="300px"}
+knitr::include_graphics("/Users/joshupadhyay/Desktop/pakistan.png")
+```
+
+
+
+With North Waziristan and Nangarhar in mind, we decided to take a closer look at the two of them: 
+
+<span style="color:blue">**Strikes in North Waziristan and Nangarhar**</span>
+
+```{r, include=FALSE}
+afgan_density <- province_af %>%
+  filter(Province == "Nangarhar") 
+
+pak_density <- pakistan_strike %>%
+  filter(Area == "North Waziristan")
+
+```
+```{r echo=FALSE}
+ggplot(data = afgan_density) + geom_col(aes(x = Year, y = strikes), fill = "blue") + 
+  geom_col(data = pak_density, aes(x = year, y = strikes), fill = "red") + 
+  labs(title = "Comparing Strikes in N. Waziristan and Nangarhar", caption = "Waizirstan is red, Nangarhar is blue") + 
+  ylab("Number of Strikes")
+```
+
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+afghanistan_drone_data<-read_csv("/Users/joshupadhyay/Desktop/drone\ data\ presentation/Afghanistan\ Drone\ Data.csv")
+
+pakistan_drone_data <- read_csv("/Users/joshupadhyay/Desktop/drone\ data\ presentation/pakistan_jack.csv")
+
+PA_middle_east_drone_data<-read_csv("/Users/joshupadhyay/Desktop/drone\ data\ presentation/PA\ Middle\ East\ Drone\ Data\ copy.csv")
+```
+
+
+```{r, include=FALSE}
+pakistan_drone_data2 <-pakistan_drone_data%>%
+  mutate(Max_terrorists_killed = Maximum_people_killed-Maximum_civilians_killed)%>%
+  mutate(Max_civilians_killed_per_strike = Maximum_civilians_killed/US_Drone_Strikes)%>%
+  mutate(Max_terrorists_killed_per_strike = Max_terrorists_killed/US_Drone_Strikes)%>%
+  mutate(civilian_per_terrorist_deaths = Maximum_civilians_killed/Max_terrorists_killed)%>%
+  mutate(civilian_to_terrorist_deaths_per_strike = Max_civilians_killed_per_strike/Max_terrorists_killed_per_strike)
+```
+
+```{r, include=FALSE}
+afghanistan_drone_data2 <-afghanistan_drone_data%>%
+  mutate(Max_terrorists_killed = Maximum_people_killed-Maximum_civilians_killed)%>%
+  mutate(Max_civilians_killed_per_strike = Maximum_civilians_killed/US_Drone_Strikes)%>%
+  mutate(Max_terrorists_killed_per_strike = Max_terrorists_killed/US_Drone_Strikes)%>%
+  mutate(civilian_per_terrorist_deaths = Maximum_civilians_killed/Max_terrorists_killed)%>%
+  mutate(civilian_to_terrorist_deaths_per_strike = Max_civilians_killed_per_strike/Max_terrorists_killed_per_strike)
+
+```
+
+```{r, include=FALSE}
+PA_middle_east_drone_data2 <-PA_middle_east_drone_data%>%
+  mutate(Max_terrorists_killed = Maximum_people_killed-Maximum_civilians_killed)%>%
+  mutate(Max_civilians_killed_per_strike = Maximum_civilians_killed/US_Drone_Strikes)%>%
+  mutate(Max_terrorists_killed_per_strike = Max_terrorists_killed/US_Drone_Strikes)%>%
+  mutate(civilian_per_terrorist_deaths = Maximum_civilians_killed/Max_terrorists_killed)%>%
+  mutate(civilian_to_terrorist_deaths_per_strike = Max_civilians_killed_per_strike/Max_terrorists_killed_per_strike)
+```
+
+
+
+```{r, include=FALSE, warning=FALSE}
+Number.of.Drone.Strikes<-PA_middle_east_drone_data2%>%
+  ggplot() +  geom_jitter(aes(x =Year, y =US_Drone_Strikes, color=Country)) + ggtitle("Number of Drone Strikes Per Year, Both Countries")
+ggplotly(Number.of.Drone.Strikes)
+```
+```{r echo=FALSE}
+Number.of.Drone.Strikes
+```
+
+When looking at a visualization of the number of strikes in North Waziristan (Pakistan) compared to Nangahar (across the border from Waziristan, in Afghanistan), it's interesting that the number of drone strikes in Waziristan rapidly increases from three drone strikes in 2007 to 128 in 2010. Then it rapidly decreases back to three strikes in 2016. As Waziristan strikes decrease, Nangahar strikes increase, starting at over 60 strikes in the first data recorded year and remain fairly consistent at around 60 strikes, except for 2016. 
+The visualization of total drone strikes in Pakistan and Afghanistan doesn't quite show a trend similar to the increases and decreases in Waziristan and Nangarhar. The number Pakistan strikes remain quite small when compared to Afghanistan. This may indicate that most drone strikes were targeted in the province of Waziristan, while Afghanistan strikes were a little more spread out across the country. 
+However, the near-perfect timing of decrease Waziristan strike count and increase in Nangahar strike count is interesting, and we wanted to investigate whether this meant that terrorists had been spreading or migrating by crossing the border into Afghanistan (Nangarhar) from Pakistan (Waziristan), as strike placement seemed to be moving. 
+
+
+
+
+<span style="color:blue">**Heatmap Relationships**</span>
+
+```{r include=FALSE, warning=FALSE}
+Pakistan.drone.heat1 <- pakistan_drone_data2 %>% 
+  select(Year, Max_terrorists_killed, Maximum_civilians_killed, Max_civilians_killed_per_strike, Max_terrorists_killed_per_strike, civilian_per_terrorist_deaths,civilian_to_terrorist_deaths_per_strike)
+```
+
+<span style="color:blue">**Pakistan Heatmap**</span>
+```{r echo=FALSE, fig.height=8, fig.width=6, warning=FALSE}
+Pakistan.drone.heat1 <- Pakistan.drone.heat1[order(Pakistan.drone.heat1$Year, decreasing = FALSE),]
+row.names(Pakistan.drone.heat1) <- Pakistan.drone.heat1$Year
+drone_matrix<-data.matrix(Pakistan.drone.heat1)
+Pakistan_drone_heatmap <- heatmap(drone_matrix, Rowv=NA, Colv=NA, col = heat.colors(256), scale="column", margins=c(5,10), cexRow=1, cexCol=1)
+```
+
+```{r include=FALSE, warning=FALSE}
+Afghanistan.drone.heat1 <- afghanistan_drone_data2 %>% 
+  select(Year, Max_terrorists_killed, Maximum_civilians_killed, Max_civilians_killed_per_strike, Max_terrorists_killed_per_strike, civilian_per_terrorist_deaths,civilian_to_terrorist_deaths_per_strike)
+```
+
+<span style="color:blue">**Afghanistan Heatmap**</span>
+```{r echo=FALSE, fig.height=8, fig.width=6, warning=FALSE}
+Afghanistan.drone.heat1 <- Afghanistan.drone.heat1[order(Afghanistan.drone.heat1$Year, decreasing = FALSE),]
+row.names(Afghanistan.drone.heat1) <- Afghanistan.drone.heat1$Year
+drone_matrix<-data.matrix(Afghanistan.drone.heat1)
+Afghanistan_drone_heatmap <- heatmap(drone_matrix, Rowv=NA, Colv=NA, col = heat.colors(256), scale="column", margins=c(5,10), cexRow=1, cexCol=1)
+```
+
+
+
+In both heatmaps of Pakistan and Afghanistan, the red - yellow gradient shows dark red as the low end of a variable spectrum, and light yellow as the high end, as seen in the year 2004 being dark and 2018 being light. The most significant Pakistan relationship shown in the heat map is between 'Max_terrorists_killed' and 'Maximum_civilians _killed', that show darker red until 2007, and then from 2008-2012, there are a higher number of deaths for both terrorists and civilians. After 2012 the, the numbers decrease again.
+	This trend is interesting when compared to the Afghanistan heatmap, as 'Max_terrorists_killed' and 'Maximum_civilians _killed begin in the year 2015 at a very high level, seen in the light yellow colors. 
+	The relationship between Pakistan and Afghanistan terrorist and civilian deaths seem to somewhat parallel the relationship between drone strikes in Waziristan and Nangahar. We decided to explore this relationship between terrorist and civilian deaths a bit more. 
+	
+	
+This graph paints a clearer picture of the terrorist migration, or at least a shift in the campaign from North Waziristan in Pakistan to Nangarhar in Afghanistan. It is evident that post 2014, Nangarhar has been the focal point of drone attacks.  
+	
+```{r, include=FALSE, warning=FALSE}
+
+Max_terrorist_deaths2<-PA_middle_east_drone_data2%>%
+  ggplot() +  geom_jitter(aes(x =Year, y =Max_terrorists_killed, color=Country)) + geom_text_repel(aes(x =Year, y =Max_terrorists_killed, color=Country, label=Max_terrorists_killed)) + labs(title ="Terrorists Killed Per Year Due to Drone Strikes")
+Max_terrorist_deaths2
+
+```
+```{r echo=FALSE, warning=FALSE}
+
+ggplotly(Max_terrorist_deaths2)
+
+```
+
+
+It turns out that the increase in decrease in drone strikes in Pakistan (specifically Waziristan) and increase in Afghanistan makes sense in the context of the War on Terror in the Middle East. The drone air war in Pakistan began in 2004 under President Bush as a way of taking out al Qaeda leaders and disrupting the terrorist network in Pakistan. The Obama administration dramatically expanded the air war, and intelligence officers believe the strikes succeeded in inflicting damage on al Qaeda's core leadership. Obama's drone campaign reached a peak of an estimated 117 strikes in 2010.  Waziristan was also a hotbed for U.S. drone strikes during the years 2008 to 2012, used as somewhat of an experimental platform for new drone strike technology, such as the use of controversial 'signature' strikes, which were drone raids against groups of military-age men believed to be militants from al Qaeda or associated groups. The tactic caused an unknown number of civilian casualties, angered the Pakistani government, and prompted opposition among some U.S. diplomats, who argued the practice was too indiscriminate. As Pakistani civilians have emphasized, it's difficult for a drone operator to distinguish between circumstances where a Taliban or Al Qaeda commander had been welcomed into a community and where the commander had bullied or forced his way in. If the Taliban comes to a home and asks for shelter, a civilian has no choice. Consequently, a potential drone target is living in a guest room or a guesthouse on a civilian's compound, one wall away from a family
+Strikes and civilian deaths began to gradually decline at the end of President Obama's term, partly because the CIA began to run out of al Qaeda figures to kill and U.S. priorities shifted to threats in Yemen and Syria.  The Obama administration also scaled back the use 'signature' strikes and employed new and more accurate drone technology that could hover in the air longer and pinpoint targets. This strategy explains the decline in drone strikes and terrorist/civilian deaths in Pakistan. However, Al-Qaeda began migrating from North Waziristan to southern Afghanistan (Nangarhar) in 2014, with other al-Qaeda-linked groups, after Pakistan launched a military offensive in the region. 
+Due to the fact that the Pakistani military marched into Miram Shah and Mir Ali, the main towns in North Waziristan, a huge wave of refugees was created. Many crossed the border into Afghanistan, where the political process is struggling and the American military is withdrawing. With those refugees, many officials say, are again a number of militant commanders and fighters. Now that ISIS has subsided in Libya and Iraq, Trump's White House's focus is back on Afghanistan, and Trump continues the trend of using drone strikes, ignoring any cautionary measures that Obama may have taken. 
+
+<span style="color:blue">**Drone Strikes in the Media: Articles and Strikes**</span>
+
+```{r, echo=FALSE}
+all_times = rbind(afghanistan_time,pakistan_time)
+
+qwerty <- ggplot(data = all_times, aes(x = datenew,fill = country))+
+  geom_density(aes(group = country), alpha = 0.4)+
+  scale_fill_manual(values = c("blue","red"))+
+  ggtitle("Drone Strikes NYTimes Articles Pakistan and Afghanistan")
+
+qwerty
+
+drone_paaf<-rbind(pakistan_drone, afghanistan_drone)
+
+
+```
+```{r echo=FALSE}
+ggplot(data = drone_paaf, aes(x = Date,fill = country))+
+  geom_density(aes(group = country), alpha = 0.4)+
+  scale_fill_manual(values = c("blue","red"))+
+  ggtitle("Drone Strikes Pakistan and Afghanistan")
+```
+
+
+In the first graph, we see that Drone Strikes peaked during the 2009-2015 period. But we also see that after 2014, there has been a higher number of Afghanistan articles published, while before 2014, there has been a higher number of Pakistan articles published. This shows that the media has responded to the change of focus for the drone strikes from Pakistan towards Afghanistan.
+
+
+In this graph, we can clearly see that the number of articles from Pakistan was prominent during the 2009-2014 period, but after 2014 we see that the number of articles from Afghanistan increased. This shows that the media has been responsive to the changes in drone strikes, and it is possible to just infer from the number of articles where most of the drone strikes are being focused. The change in the difference in the number of articles between Pakistan and Afghanistan gives further evidence that there is a change in policy for the United States regarding drone strikes in the Afghanistan-Pakistan area.
+
+
+```{r, include=FALSE}
+#difference in articles per month
+diff_num_articles<-
+  all_times%>%
+  mutate(year = year(datenew),month = month(datenew))%>%
+  group_by(country,year)%>%
+  summarise(n_articles = n())
+
+spread_out<-
+  diff_num_articles%>%
+  spread(key = country, value = n_articles, fill=  0)
+
+spread_out<-
+  spread_out%>%
+  mutate(diff_num = Pakistan - Afghanistan)%>%
+  mutate(positive = diff_num>0)
+spread_out
+spread_out_graph <-spread_out%>%
+  ggplot(aes(x = year,y = diff_num,fill = positive))+
+  scale_fill_manual(values = c("blue","red"))+
+  geom_col()+
+  ggtitle("Difference in the number of articles between Pakistan and Afghanistan")+
+  guides(fill = guide_legend(title = "Pakistan>Afghanistan"))
+```
+
+```{r echo=FALSE}
+spread_out_graph
+```
+
+
+<span style="color:blue">**Drone Strike Effectiveness: A New Tool of War?**</span>
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+Civilian.per.terrorist.deaths<-PA_middle_east_drone_data2%>%
+  ggplot()  + geom_jitter(aes(x =civilian_per_terrorist_deaths, y=Year, color=Country)) + geom_text_repel(aes(x =civilian_per_terrorist_deaths, y =Year, color=Country, label = Country)) + labs(title ="Civilian per terrorist deaths") + coord_flip()
+
+ggplotly(Civilian.per.terrorist.deaths)
+
+```
+
+For some background, it is not entirely drones that have pushed the terrorists out of Pakistan. The Pakistani military has increased its presence in North Waziristan, providing greater pressure for terrorists to move across the border to Afghanistan, where they can be more secure as the Afghan government has been more reluctant to support the massive influx of drone strikes. As drones have become more effective and a more widely-deployed tactic, they may pose a greater threat. Its increased effectiveness and threat foreshadows an almost utopian future where counterterrorism conflicts are solved without sacrificing soldiers in foreign soil. However, 100% accuracy will almost never be possible and there will always be the question of 'who is a civilian.' This may lead to a growing, Middle-eastern sentiment of disdain towards the U.S. and a zero-sum game, as drone strike terrorist kills may influence affected civilians to give in to terrorist pressures. Many civilians in Waziristan considered the United States a greater menace than the terrorists in their communities because, as the world's leading military power, the United States pursued its own objectives, mainly with drone strikes, and destroyed the local economy and social structure. North Waziristan residents and other Pakistanis who have been forced out of Pakistan may be more easily convinced to support terrorist activity.
+
+
+<span style="color:blue">**Final Thoughts, Limitations**</span>
+
+
+While the drone strike data was informative and surprisingly effective at tracking terrorist movements across the Pakistan-Afghanistan border, there were still some concessions we had to make. We originally wanted to apply sentiment analysis, but we stopped after we realized that the words of most articles were too specific, and did not match up to any already-existing sentiment dictionaries out there. The data also varied by country, in terms of time period and detail ' some datasets went in depth on the target of the strike, while others did not. Additional variables like intended target would have helped us build a model of the 'typical target', which could have been compared across provinces/countries. 
+
+
